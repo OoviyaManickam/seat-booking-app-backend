@@ -1,0 +1,93 @@
+@Autowired
+EmailService emailService;
+
+@Autowired
+private AuthenticationManager authenticationManager;
+
+@PostMapping("/register")
+public ResponseEntity<Object> register (
+        @Valid @RequestBody RegisterDto registerDto
+        , BindingResult result) {
+
+    var bCryptEncoder = new BCryptPasswordEncoder();
+    AppUser appUser = new AppUser();
+    appUser.setUserName(registerDto.getUserName());
+    appUser.setEmail(registerDto.getEmail());
+    appUser.setPhoneNumber(registerDto.getPhoneNumber());
+    appUser.setRole("client");
+    appUser.setPassword(bCryptEncoder.encode(registerDto.getPassword()));
+    appUser.setCreatedAt(new Date());
+
+    try {
+        var otherUser = appUserRepository.findByUserName(registerDto.getUserName());
+        if(otherUser != null){
+            return ResponseEntity.badRequest().body("Username already exists");
+        }
+        otherUser = appUserRepository.findByEmail(registerDto.getEmail());
+        if(otherUser != null){
+            return ResponseEntity.badRequest().body("Email address already exists");
+        }
+        appUserRepository.save(appUser);
+        emailService.sendEmail(appUser.getEmail(), "Registration Successful", "Your Registration into WheelsUp was Successfully");
+        String jwtToken = createJwtToken(appUser);
+
+        var response = new HashMap<String, Object>();
+        response.put("token", jwtToken);
+        response.put("user", appUser);
+
+        return ResponseEntity.ok(response);
+    }
+    catch (Exception ex){
+        System.out.println("There is an Exception");
+        ex.printStackTrace();
+    }
+
+    return ResponseEntity.badRequest().body("Error");
+}
+
+
+package com.example.backend.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.stereotype.Service;
+
+@Service
+public class EmailService {
+
+    @Value("$(spring.mail.username)")
+    private String from;
+
+    @Autowired
+    private JavaMailSender mailSender;
+
+    public void sendEmail(String to, String subject, String body) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(from);
+        message.setTo(to);
+        message.setSubject(subject);
+        message.setText(body);
+
+        mailSender.send(message);
+    }
+
+}
+
+
+
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-mail</artifactId>
+</dependency>
+
+
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=wheelsup.carservices@gmail.com
+spring.mail.password=fdlf jzub owxc myaa
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+
+
